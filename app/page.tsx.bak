@@ -1,0 +1,168 @@
+"use client"
+
+import { useState } from "react"
+import { motion, AnimatePresence } from "framer-motion"
+import { AudioUploader } from "@/components/transcription/audio-uploader"
+import { LanguageSelector } from "@/components/transcription/language-selector"
+import { ProgressIndicator } from "@/components/transcription/progress-indicator"
+import { TranscriptDisplay } from "@/components/transcription/transcript-display"
+import { MicVocal, Braces } from "lucide-react"
+import { useLanguage } from "@/lib/language-context"
+import { transcribeAudio, TranscriptSegment } from "@/lib/transcription-service"
+import { realTranscribeAudio } from "@/lib/real-transcription"
+
+export default function Home() {
+  const { language } = useLanguage()
+  const [processing, setProcessing] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [stage, setStage] = useState<"idle" | "uploading" | "processing" | "analyzing" | "completed">("idle")
+  const [transcript, setTranscript] = useState<TranscriptSegment[]>([])
+  const [error, setError] = useState<string | null>(null)
+
+  const handleFileSelected = async (file: File) => {
+    try {
+      setError(null)
+      setProcessing(true)
+      setTranscript([])
+      
+      // 上传阶段
+      setStage("uploading")
+      await simulateProgress(0, 20, 1000)
+      
+      // 处理阶段
+      setStage("processing")
+      await simulateProgress(20, 50, 1500)
+      
+      // 分析阶段
+      setStage("analyzing")
+      await simulateProgress(50, 80, 2000)
+      
+      // 调用实际的转录API
+      const result = await transcribeAudio(file, language)
+      setTranscript(result.transcript)
+      
+      // 完成
+      setProgress(100)
+      setStage("completed")
+    } catch (error) {
+      console.error("转录错误:", error)
+      setError(error instanceof Error ? error.message : "转录过程中发生未知错误")
+      setStage("idle")
+    } finally {
+      setTimeout(() => {
+        setProcessing(false)
+      }, 500)
+    }
+  }
+
+  const simulateProgress = async (from: number, to: number, duration: number) => {
+    const start = Date.now()
+    const updateProgress = () => {
+      const elapsed = Date.now() - start
+      const progress = from + (Math.min(elapsed / duration, 1) * (to - from))
+      setProgress(progress)
+      
+      if (progress < to) {
+        requestAnimationFrame(updateProgress)
+      }
+    }
+    updateProgress()
+    return new Promise(resolve => setTimeout(resolve, duration))
+  }
+
+  return (
+    <div className="container mx-auto px-4 pb-20">
+      <section className="mb-16 text-center pt-12 pb-16 max-w-3xl mx-auto">
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="mb-6"
+        >
+          <div className="inline-flex p-3 bg-primary/10 rounded-full mb-6">
+            <MicVocal className="h-8 w-8 text-primary" />
+          </div>
+          <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4">
+            VoiceScribe
+          </h1>
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+            将您的音频转换为精确的文字记录，支持说话人识别
+            <br />
+            Transform your audio into accurate transcripts with speaker detection
+          </p>
+        </motion.div>
+        
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5, delay: 0.3 }}
+          className="flex flex-col md:flex-row gap-4 justify-center max-w-md mx-auto"
+        >
+          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            <Braces className="h-4 w-4" />
+            <span>支持多种语言 | Multiple languages supported</span>
+          </div>
+        </motion.div>
+      </section>
+
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, delay: 0.5 }}
+        className="grid md:grid-cols-[1fr_300px] gap-8 max-w-4xl mx-auto"
+      >
+        <div className="space-y-6">
+          <AudioUploader 
+            onFileSelected={handleFileSelected}
+            isProcessing={processing}
+          />
+          <ProgressIndicator stage={stage} progress={progress} />
+          
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg p-4 text-sm">
+              <p className="font-medium">转录失败 | Transcription failed</p>
+              <p className="mt-1">{error}</p>
+            </div>
+          )}
+        </div>
+        
+        <div className="space-y-6">
+          <LanguageSelector
+            value={language}
+            onChange={(value) => useLanguage().setLanguage(value)}
+            disabled={processing}
+          />
+          
+          <div className="space-y-3">
+            <div className="bg-secondary/50 rounded-lg p-4 text-sm">
+              <h3 className="font-medium mb-2">使用技巧 | Tips:</h3>
+              <ul className="space-y-2 text-muted-foreground">
+                <li>使用高质量的音频录音 | Use high-quality recordings</li>
+                <li>确保说话人声音清晰 | Ensure speakers are clearly audible</li>
+                <li>尽量减少背景噪音 | Reduce background noise</li>
+                <li>选择正确的语言以提高准确性 | Select the correct language</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+
+      <AnimatePresence>
+        {stage === "completed" && (
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            transition={{ duration: 0.5 }}
+            className="mt-16"
+          >
+            <TranscriptDisplay 
+              transcript={transcript} 
+              visible={stage === "completed"} 
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}

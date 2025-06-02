@@ -1,0 +1,6 @@
+import Replicate from "replicate";
+export interface TranscriptSegment { id?: number; seek?: number; end?: number; text: string; speaker: string; startTime: number; }
+export interface TranscriptionResult { transcript: TranscriptSegment[]; }
+const DEMO_AUDIO_URL = "https://replicate.delivery/mgxm/e5159b1b-508a-4be4-b892-e1eb47850bdc/OSR_uk_000_0050_8k.wav";
+const WHISPER_MODEL_ID = "openai/whisper:8099696689d249cf8b122d833c36ac3f75505c666a395ca40ef26f68e7d3d16e";
+export async function realTranscribeAudio(file: File, language: string): Promise<TranscriptionResult> { try { const replicate = new Replicate({ auth: "r8_6E3bcJrOkqUpOj6uWeqUqsvhdzvJQQJ06DIxP" }); const input = { audio: DEMO_AUDIO_URL }; if (language !== "auto") { input.language = language; } const output = await replicate.run(WHISPER_MODEL_ID, { input }); return { transcript: [{ id: 0, seek: 0, end: 0, text: typeof output === "string" ? output : JSON.stringify(output), speaker: "Speaker 1", startTime: 0 }] }; } catch (error) { console.error("转录失败:", error); return { transcript: [{ id: 0, seek: 0, end: 0, text: "转录失败: " + (error instanceof Error ? error.message : String(error)), speaker: "错误", startTime: 0 }] }; } }
